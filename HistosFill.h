@@ -33,6 +33,8 @@
 #include "TSystem.h"
 #include "TLorentzVector.h"
 #include "TRandom3.h"
+#include "TMatrixD.h"
+#include "TVectorD.h"
 
 #include "settings.h"
 #include "HistosBasic.h"
@@ -40,6 +42,7 @@
 #include "HistosMC.h"
 #include "HistosRun.h"
 #include "HistosAll.h"
+#include "Histos2D.h"
 #include "tools.h"
 #include "IOV.h"
 
@@ -159,6 +162,7 @@ public :
   Int_t           PFJetsCHS__mlvTrk_[kMaxPFJetsCHS_];   //[PFJetsCHS__]
   Int_t           PFJetsCHS__mjtTrk_[kMaxPFJetsCHS_];   //[PFJetsCHS__]
 
+  vector<double>  mCorrs;
   /////////////////////////////////////////////////////////////////////////////
   // Following lines added by hand and must come *after* auto-generated header
   /////////////////////////////////////////////////////////////////////////////
@@ -178,7 +182,7 @@ public :
 
   // We don't delete that much stuff here, since ROOT takes care of garbage collection (and gets very easily angry!!!)
   ~HistosFill() {}
-  HistosFill(TChain *tree);
+  HistosFill(TChain *tree, int eraIdx = 0);
   virtual bool     Init(TChain *tree); // custom
 
   virtual void     Loop();
@@ -192,7 +196,7 @@ public :
 
   bool             LoadJSON();
   bool             LoadLumi();
-  bool             LoadPuProfiles();
+  bool             LoadPUProfiles(bool do80 = false);
 
   void             InitBasic(string name);
   void             FillBasic(string name);
@@ -204,6 +208,11 @@ public :
   void             FillSingleEta(HistosEta *h, Float_t *pt, Float_t *eta, Float_t *phi);
   void             WriteEta();
 
+  void             Init2D(string name);
+  void             Fill2D(string name);
+  void             FillSingle2D(Histos2D *h);
+  void             Write2D();
+  
   void             InitMC(string name);
   void             FillMC(string name, Float_t *recopt, Float_t *genpt, Float_t *pt, Float_t *eta, Float_t *phi);
   void             FillSingleMC(HistosMC *h, Float_t *recopt, Float_t *genpt, Float_t *pt, Float_t *eta, Float_t *phi);
@@ -226,6 +235,7 @@ private:
   bool   _pass;
   bool   _pass_qcdmet;
   bool   _initsuccess;
+  bool   _do80mb;
 
   int _eraIdx;
   int _nbadevts_dup;
@@ -246,14 +256,13 @@ private:
   Long64_t _ntot ;
   Long64_t _nskip;;
   double _xsecMinBias;
-  double _w, _w0;
+  double _w, _w0, _w80;
   double _binnedmcweight;
   int    _binnedmcrepeats;
 
   vector<string> _availFlts;
   vector<string> _availTrigs;
   vector<unsigned int> _goodTrigs;
-  vector<double> _goodWgts;
   vector<bool> _jetids;
   vector<int> _jkmore;
 
@@ -271,12 +280,14 @@ private:
   map<int, map<int, float> > _lums;
   map<int, map<int, float> > _lums2;
   map<string, double> _wt; // Trigger pileup and trigger weights
+  map<string, double> _wt80; // Trigger pileup and trigger weights
   map<string, vector<HistosBasic*> > _histos;
   map<string, vector<HistosEta*> > _etahistos;
+  map<string, vector<Histos2D*> > _2Dhistos;
   map<string, vector<HistosMC*> > _mchistos;
   map<string, HistosRun*> _runhistos;
   map<string, HistosAll*> _allhistos;
-  map<string, TH1D*> _pudist;
+  map<string, TH1D*> _pudist, _pudist80;
   map<string, int> _cnt; // efficiency counters
 
   TH1D *_pumc;
@@ -396,16 +407,24 @@ private:
   Float_t         &metphi;
   Float_t         &metsumet;
 #ifdef NEWMODE
+  Float_t         &met0;
+  Float_t         &metphi0;
+  Float_t         &metsumet0;
   Float_t         &met01;
+  Float_t         &metphi01;
   Float_t         &metsumet01;
 #endif
 
   Float_t         met1;
   Float_t         metphi1;
+  Float_t         metsumet1;
   Float_t         met1_nol2l3;
   Float_t         metphi1_nol2l3;
   Float_t         met2;
   Float_t         metphi2;
+
+  Float_t         mht;
+  Float_t         mhtphi;
 
   string         _runinfo;
 };

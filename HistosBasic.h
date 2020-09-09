@@ -49,8 +49,11 @@ class HistosBasic {
   TH1D *hpt_evt;
   TH1D *hpt_jet;
 
-  // 1 GeV ins
+  // 1 GeV bins
   TH1D *hpt0;
+
+  // Double bins
+  TH1D *hptd;
 
   // leading and non-leading jets
   TH1D *hpt1;
@@ -81,7 +84,7 @@ class HistosBasic {
   TH1D *hupt_g0tw; // unmatched
   TH1D *hgpt_g0;
   TH1D *hqpt_g0;
-  TH1D *hupt_g0; // unmatched 
+  TH1D *hupt_g0; // unmatched
   TH1D *hgpt_g; // gluons vs get pT
   TH1D *hqpt_g;
   TH1D *hupt_g; // unmatched vs gen pT
@@ -117,13 +120,12 @@ class HistosBasic {
   TProfile *pjec_l2l3;
   TProfile *pjec_res;
 
+  // pile-up information
   TH1D *htrpu;
   TH1D *hitpu;
   TH1D *hootpuearly;
   TH1D *hootpulate;
-  TH2D *h2itvsoot;
 
-  // pile-up information
   TProfile *pa;
   TProfile *ptrpu;
   TProfile *pnpv;
@@ -132,13 +134,14 @@ class HistosBasic {
   TProfile *pnpvvsrho;
   TProfile *prhovsnpv;
   TProfile *prhovsnpvall;
-  TH2D *h2rhovsnpv;
+  TH2D     *h2itvsoot;
+  TH2D     *h2rhovsnpv;
+  TH2D     *h2trpuvsrho;
   //
   TProfile *prhovstrpu;
   TProfile *pnpvvstrpu;
   TProfile *pnpvallvstrpu;
   TProfile *pitpuvstrpu;
-  TH1D *htrpu2;
   TH1D *hjet_vstrpu;
   TH1D *hlumi_vstrpu;
 
@@ -172,22 +175,38 @@ class HistosBasic {
   TProfile *phhf;
   TProfile *phef;
   TProfile *ppuf;
-  TH1D *hncand;
-  TH1D *hnch;
-  TH1D *hnne;
-  TH1D *hnnh;
-  TH1D *hnce;
-  TH1D *hnmu;
-  TH1D *hnhh;
-  TH1D *hnhe;
-  TH1D *hchf;
-  TH1D *hnef;
-  TH1D *hnhf;
-  TH1D *hcef;
-  TH1D *hmuf;
-  TH1D *hhhf;
-  TH1D *hhef;
-  TH1D *hpuf;
+  TProfile *pncand80;
+  TProfile *pnch80;
+  TProfile *pnne80;
+  TProfile *pnnh80;
+  TProfile *pnce80;
+  TProfile *pnmu80;
+  TProfile *pnhh80;
+  TProfile *pnhe80;
+  TProfile *pchf80;
+  TProfile *pnef80;
+  TProfile *pnhf80;
+  TProfile *pcef80;
+  TProfile *pmuf80;
+  TProfile *phhf80;
+  TProfile *phef80;
+  TProfile *ppuf80;
+  TH1D     *hncand;
+  TH1D     *hnch;
+  TH1D     *hnne;
+  TH1D     *hnnh;
+  TH1D     *hnce;
+  TH1D     *hnmu;
+  TH1D     *hnhh;
+  TH1D     *hnhe;
+  TH1D     *hchf;
+  TH1D     *hnef;
+  TH1D     *hnhf;
+  TH1D     *hcef;
+  TH1D     *hmuf;
+  TH1D     *hhhf;
+  TH1D     *hhef;
+  TH1D     *hpuf;
   // control plots of components (JEC tag-and-probe)
   TProfile *pncandtp;
   TProfile *pnchtp;
@@ -205,33 +224,49 @@ class HistosBasic {
   TProfile *phhftp;
   TProfile *pheftp;
   TProfile *ppuftp;
+  TProfile *pncandtp80;
+  TProfile *pnchtp80;
+  TProfile *pnnetp80;
+  TProfile *pnnhtp80;
+  TProfile *pncetp80;
+  TProfile *pnmutp80;
+  TProfile *pnhhtp80;
+  TProfile *pnhetp80;
+  TProfile *pchftp80;
+  TProfile *pneftp80;
+  TProfile *pnhftp80;
+  TProfile *pceftp80;
+  TProfile *pmuftp80;
+  TProfile *phhftp80;
+  TProfile *pheftp80;
+  TProfile *ppuftp80;
   //
   TProfile *ppttagptprobe;
   TProfile *ppttageff;
   TProfile *ppttagmu;
   TProfile *ppttagptprobe_noa;
   TProfile *ppttagmu_noa;
-  TH2D *h2pttagptprobe;
-  TH2D *h2pttagmu;
-  TH2D *h2pttagptprobe_noa;
-  TH2D *h2pttagmu_noa;
+  TH2D     *h2pttagptprobe;
+  TH2D     *h2pttagmu;
+  TH2D     *h2pttagptprobe_noa;
+  TH2D     *h2pttagmu_noa;
   //
-  TH1D *hncandtp;
-  TH1D *hnchtp;
-  TH1D *hnnetp;
-  TH1D *hnnhtp;
-  TH1D *hncetp;
-  TH1D *hnmutp;
-  TH1D *hnhhtp;
-  TH1D *hnhetp;
-  TH1D *hchftp;
-  TH1D *hneftp;
-  TH1D *hnhftp;
-  TH1D *hceftp;
-  TH1D *hmuftp;
-  TH1D *hhhftp;
-  TH1D *hheftp;
-  TH1D *hpuftp;
+  TH1D     *hncandtp;
+  TH1D     *hnchtp;
+  TH1D     *hnnetp;
+  TH1D     *hnnhtp;
+  TH1D     *hncetp;
+  TH1D     *hnmutp;
+  TH1D     *hnhhtp;
+  TH1D     *hnhetp;
+  TH1D     *hchftp;
+  TH1D     *hneftp;
+  TH1D     *hnhftp;
+  TH1D     *hceftp;
+  TH1D     *hmuftp;
+  TH1D     *hhhftp;
+  TH1D     *hheftp;
+  TH1D     *hpuftp;
   // Npv
   TProfile *pncandtp_vsnpv;
   TProfile *pnchtp_vsnpv;
@@ -280,8 +315,6 @@ class HistosBasic {
   TH1D *hselpt;
   TH1D *hy;
   TH1D *hy2;
-  TH1D *heta;
-  TH1D *heta2;
   TH1D *hphi;
   TH1D *hdphi;
   TH1D *hdpt;
@@ -329,7 +362,6 @@ class HistosBasic {
 
   TH1D *hyeta;
   TH1D *hyeta2;
-  TH2D *hetaphi;
 
   // MC checks
   TH1D *hpt_jt30;
@@ -389,41 +421,51 @@ class HistosBasic {
 
   // Response closure
   TProfile2D *p2rvsnpv;
-  TH2D *h2r_r;
-  TH2D *h2r_g;
-  TProfile *p2r_r;
-  TProfile *p2r_g;
-  TProfile *p2r_ruw;
-  TProfile *p2r_guw;
-  
-  TH2D     *h2r_g_r;
-  TH2D     *h2r_g_g;
-  TProfile *p2r_g_r;
-  TProfile *p2r_g_g;
-  TProfile *p2r_g_ruw;
-  TProfile *p2r_g_guw;
-  
-  TH2D     *h2r_q_r;
-  TH2D     *h2r_q_g;
-  TProfile *p2r_q_r;
-  TProfile *p2r_q_g;
-  TProfile *p2r_q_ruw;
-  TProfile *p2r_q_guw;
-  
-  TH2D     *h2r_u_r;
-  TH2D     *h2r_u_g;
-  TProfile *p2r_u_r;
-  TProfile *p2r_u_g;
-  TProfile *p2r_u_ruw;
-  TProfile *p2r_u_guw;
-  
+  TH2D       *h2r_r;
+  TH2D       *h2r_g;
+  TProfile   *p2r_r;
+  TProfile   *p2r_g;
+  TProfile   *p2r_rpuw;
+  TProfile   *p2r_gpuw;
+  TProfile   *p2r_ruw;
+  TProfile   *p2r_guw;
+
+  TH2D       *h2r_g_r;
+  TH2D       *h2r_g_g;
+  TProfile   *p2r_g_r;
+  TProfile   *p2r_g_g;
+  TProfile   *p2r_g_rpuw;
+  TProfile   *p2r_g_gpuw;
+  TProfile   *p2r_g_ruw;
+  TProfile   *p2r_g_guw;
+
+  TH2D       *h2r_q_r;
+  TH2D       *h2r_q_g;
+  TProfile   *p2r_q_r;
+  TProfile   *p2r_q_g;
+  TProfile   *p2r_q_rpuw;
+  TProfile   *p2r_q_gpuw;
+  TProfile   *p2r_q_ruw;
+  TProfile   *p2r_q_guw;
+
+  TH2D       *h2r_u_r;
+  TH2D       *h2r_u_g;
+  TProfile   *p2r_u_r;
+  TProfile   *p2r_u_g;
+  TProfile   *p2r_u_rpuw;
+  TProfile   *p2r_u_gpuw;
+  TProfile   *p2r_u_ruw;
+  TProfile   *p2r_u_guw;
+
   //Rapidity closure
-  TH2D *h2dy_r;
-  TH2D *h2dy_g;
-  TProfile *p2dy_r;
-  TProfile *p2dy_g;
-  TProfile *p2dy_ruw;
-  TProfile *p2dy_guw;
+  TH2D       *h2dy_r;
+  TH2D       *h2dy_g;
+  TProfile   *p2dy_r;
+  TProfile   *p2dy_g;
+  TProfile   *p2dy_rpuw;
+  TProfile   *p2dy_gpuw;
+  TProfile   *p2dy_ruw;
+  TProfile   *p2dy_guw;
   TProfile2D *pdy_r;
   TProfile2D *pdy_g;
 

@@ -159,7 +159,7 @@ public:
 
     // Opening the requested files {
     const char *cdt_type = all_MC ? _dt_type.c_str() : "DATA";
-    TFile *fdt = new TFile(Form("%soutput-%s-%s.root",dt_path,cdt_type,pertrg?"1":"2b"),"READ");
+    TFile *fdt = new TFile(Form("%soutput-%s-%s.root",dt_path,cdt_type,pertrg?"2a":"2b"),"READ");
     assert(fdt and !fdt->IsZombie());
     bool enterdtstandard = fdt->cd("Standard"); assert(enterdtstandard);
     _ddt = gDirectory;
@@ -167,7 +167,7 @@ public:
     cout << fdt->GetName() << endl;
 
     const char *cmc_type = all_DT ? "DATA" : mc_type.c_str();
-    TFile *fmc = new TFile(Form("%soutput-%s-%s.root",mc_path,cmc_type,pertrg?"1":"2b"),"READ");
+    TFile *fmc = new TFile(Form("%soutput-%s-%s.root",mc_path,cmc_type,pertrg?"2a":"2b"),"READ");
     assert(fmc and !fdt->IsZombie());
     bool entermcstandard = fmc->cd("Standard"); assert(entermcstandard);
     _dmc = gDirectory;
@@ -210,10 +210,10 @@ public:
     _fhb->SetParameters(1.03091e+00, -5.11540e-02, -1.54227e-01); // SPRH
 
     _modes = {"","_vstrpu","_vsnpv","_vseta","_vsphi","_vsphi"};
-    _rangemin = {15, 0.5, 0.5,-5,-3.15,-3.15};
-    _rangemax = {3450, 38.5, 40.5, 5,3.15,3.15};
-    _h2min = {-4+1e-5, -4.5+1e-5, -6+1e-5, -5+1e-5, -4.5, -4.5};
-    _h2max = { 4-1e-5, 4.5-1e-5, 16-1e-5, 5-1e-5, 4.5, 4.5};
+    _rangemin = {15, 0., 0.,-5,-3.15,-3.15};
+    _rangemax = {3450, 80.5, 80.5, 5,3.15,3.15};
+    _h2min = {-2.5+1e-5, -2.5+1e-5, -2.5+1e-5, -5+1e-5, -4.5, -4.5};
+    _h2max = { 2.5-1e-5, 2.5-1e-5, 2.5-1e-5, 5-1e-5, 4.5, 4.5};
 
     _tp = tp; // "tp" for tag and probe, "" for nothing (the latter is seldom used)
     _usetriglines = true;

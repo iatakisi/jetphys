@@ -18,6 +18,7 @@
 #include "ptresolution.h"
 #include "settings.h"
 #include "tools.h"
+#include "unfsettings.h"
 
 #include <iostream>
 
@@ -52,7 +53,7 @@ void drawDagostini(string type) {
   c3->Divide(3,3,-1,-1);
 
   TH1D *h = new TH1D("h",";p_{T} (GeV);Unfolding correction",
-		     int(jp::xmax-jp::xmin),jp::xmin,jp::xmax);
+		     int(uf::xmax-uf::xmin),uf::xmin,uf::xmax);
   h->SetMinimum(0.45);
   h->SetMaximum(1.15);
   h->GetXaxis()->SetMoreLogLabels();
@@ -66,10 +67,11 @@ void drawDagostini(string type) {
   TLatex *tex = new TLatex();
   tex->SetTextSize(0.045);
 
-  const int ny = 7;
+  const int ny = 8;
   double y1 = 0; double y2 = 0;
   for (int iy = 0; iy != ny; ++iy) {
     if (iy==6) {y1 = 3.2; y2 = 4.7;}
+    else if (iy==7) {y1 = 0.0; y2 = 1.3;}
     else {y1 = 0.5*iy;  y2 = 0.5*(iy+1);}
 
     assert(din->cd(Form("Eta_%1.1f-%1.1f",y1,y2)));
@@ -110,7 +112,7 @@ void drawDagostini(string type) {
     tex->SetTextSize(0.045);
     tex->SetTextAlign(31); // align right
     tex->SetNDC(kTRUE);
-    tex->DrawLatex(0.8, 0.2, y1==0 ? "|y|<0.5" : Form("%1.1f<|y|<%1.1f",y1,y2));
+    tex->DrawLatex(0.8, 0.2, (y2-0.5)==0 ? "|y|<0.5" : Form("%1.1f<|y|<%1.1f",y1,y2));
 
     if (y1==0) {
       c1b->cd();
@@ -143,11 +145,11 @@ void drawDagostini(string type) {
       h2->GetYaxis()->SetTitleOffset(1.5);
       h2->GetZaxis()->SetRangeUser(1e-3,0.9999);
 
-      //    h2->GetXaxis()->SetRangeUser(jp::fitptmin,jp::xmax);//1327.);
+      //    h2->GetXaxis()->SetRangeUser(jp::fitptmin,jp::xmax);
       // h2->GetYaxis()->SetRangeUser(jp::recopt,jp::xmax);
       
-      h2->GetXaxis()->SetRangeUser(jp::unfptminreco,jp::xmax);//1327.);
-      h2->GetYaxis()->SetRangeUser(jp::unfptmingen,jp::xmax);
+      h2->GetXaxis()->SetRangeUser(uf::ptminreco,uf::xmax);
+      h2->GetYaxis()->SetRangeUser(uf::ptmingen,uf::xmax);
       //h2resp->Draw("SAME COLZ");
 
       //tex->DrawLatex(0.8, 0.15, _algo=="AK7" ?
@@ -169,10 +171,7 @@ void drawDagostini(string type) {
 
     TLine *l = new TLine();
     l->SetLineStyle(kDotted);
-    l->DrawLine(jp::unfptminnlo,0.15,jp::unfptminnlo,1.15); // minimum pt in unfolding
-
-    //  l->SetLineStyle(kDashed);
-    //  l->DrawLine(jp::xminpas,0.15,jp::xminpas,1.15); // Line showing data points included in results
+    l->DrawLine(uf::ptminnlo,0.15,uf::ptminnlo,1.15); // minimum pt in unfolding
 
     gfwd->SetName("gfwd");
     gfwd->SetLineWidth(2);
@@ -198,7 +197,7 @@ void drawDagostini(string type) {
     tex->SetTextSize(iy<3 ? 0.053 : 0.045);
     tex->SetTextAlign(21); // align middle
     tex->SetNDC(kFALSE);
-    tex->DrawLatex(150, 0.5, y1==0 ? "|y|<0.5" : Form("%1.1f<|y|<%1.1f",y1,y2));
+    tex->DrawLatex(150, 0.5, (y2-0.5)==0 ? "|y|<0.5" : Form("%1.1f<|y|<%1.1f",y1,y2));
 
     if (iy==2) {
       leg->AddEntry(gbayes,"RooUnfoldBayes","P");
@@ -220,8 +219,6 @@ void drawDagostini(string type) {
     l->SetLineStyle(kDotted);
     l->DrawLine(ptmin,0.9,ptmin,1.1);
     l->SetLineStyle(kDashed);
-    //l->DrawLine(56,0.9,56,1.1); // v2
-    l->DrawLine(jp::xminpas,0.9,jp::xminpas,1.1);
 
     TGraphErrors *grfwd = tools::ratioGraphs(gfwd, gfwd);
     grfwd->Draw("SAMEL");
@@ -232,7 +229,7 @@ void drawDagostini(string type) {
     TGraphErrors *grsvd = tools::ratioGraphs(gsvd, gfwd);
     grsvd->Draw("SAMEPz");
 
-    tex->DrawLatex(150,0.91, y1==0 ? "|y|<0.5" : Form("%1.1f<|y|<%1.1f",y1,y2));
+    tex->DrawLatex(150,0.91, (y2-0.5)==0 ? "|y|<0.5" : Form("%1.1f<|y|<%1.1f",y1,y2));
 
     if (iy==2) leg->Draw();
 

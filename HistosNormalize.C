@@ -33,6 +33,7 @@ vector<string> hptlike = {"hpt",
                           "hpt_jet",
                           "hpt_pre",
                           "hpt0",
+			  "hptd",
                           "hpt1",
                           "hpt2",
                           "hpt3",
@@ -63,6 +64,8 @@ void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt,
 
 // Use this to fix luminosity
 std::map<std::string, double> triglumi;
+int eraIdx = -1;
+int eraNo = 0;
 
 void HistosNormalize(string type = "")
 {
@@ -77,26 +80,37 @@ void HistosNormalize(string type = "")
 
   if (isdt and jp::usetriglumi) { // Setting up lumis
     cout << "Reading trigger luminosity from settings.h" << endl;
-    int eraIdx = -1;
-    if (jp::usetriglumiera) {
-      int eraNo = 0;
+    eraIdx = -1;
+    //    if (jp::usetriglumiera) { // Fix for including luminosity normalization for inclusive jets
+    eraNo = 0;
       for (auto &eraMatch : jp::eras) {
-        if (std::regex_search(jp::run,eraMatch)) {
+        if (jp::run==eraMatch) {
           eraIdx = eraNo;
           break;
         }
         ++eraNo;
       }
-      if (eraIdx!=-1) cout << "Using weights according to the run era!" << endl;
-      else cout << "Could not locate the given era! :(" << endl;
-    }
+
+      if (eraIdx==-1) {
+        cout << "Could not locate the given era! " << jp::run << " :(" << endl;
+        return;
+      }
+      if (size_t(eraIdx)>=jp::triglumiera.size()) {
+        cout << "Era index out of range! Use exact era labels for data! Currently using " << jp::run << endl;
+        return;
+      }
+      cout << "Using weights according to the run era " << jp::run << "!" << endl;
+    
+
+    auto &lumiHandle = (jp::usetriglumiera ? jp::triglumiera[eraIdx] : jp::triglumi);
+
     for (unsigned int i = 0; i < jp::notrigs; ++i) {
-      double lumi = (jp::usetriglumiera ? jp::triglumiera[eraIdx][i]/1e6 : jp::triglumi[i]/1e6); // /ub to /pb
+      double lumi = lumiHandle[i]/1e6; // /ub to /pb
       cout << Form(" *%s: %1.3f /pb", jp::triggers[i],lumi) << endl;
       triglumi[jp::triggers[i]] = lumi;
     }
+  
   }
-
   cout << "Calling HistosNormalize("<<type<<");" << endl;
   cout << "Input file " << fin->GetName() << endl;
   cout << "Output file " << fout->GetName() << endl;
@@ -120,7 +134,7 @@ void HistosNormalize(string type = "")
 
 void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt, double etawid, double etamid, int lvl) {
   TDirectory *curdir = gDirectory;
-
+  
   // Automatically go through the list of keys (directories)
   TList *keys = indir->GetListOfKeys();
   TListIter itkey(keys);
@@ -153,7 +167,7 @@ void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt, double et
         loclvl++;
       } else if (TString(indir2->GetName()).Contains("FullEta")) {
         loclvl++;
-      } else if (loclvl>0) {
+      } else if (loclvl>=0) {
         loclvl++;
         cout << endl << " trg: " << indir2->GetName();
       }
@@ -192,9 +206,11 @@ void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt, double et
             continue;
           } // hlumi
 
-          // Set lumi weights
-          lumi = triglumi[trgname];
-          lumiref = triglumi[jp::reftrig];
+          if (triglumi.count(trgname)!=0) {
+            // Set lumi weights if this is a trigger folder
+            lumi = triglumi[trgname];
+            lumiref = triglumi[jp::reftrig];
+          }
         } else { // Use lumi info from hlumi
           TH1D* lumihisto = dynamic_cast<TH1D*>(indir->Get("hlumi"));
           TH1D* lumihistoref = dynamic_cast<TH1D*>(indir->Get(Form("../%s/hlumi",jp::reftrig)));
@@ -224,8 +240,16 @@ void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt, double et
 
         // Normalization for luminosity
         if (isdt and lumiref>0) {
+
+	  int refidx = 0; // For luminosity normalization of inclusive jet spectra
+	  if (jp::yid==0) refidx = 9;
+	  else refidx = 10;
+	  
           if (TString(obj2->GetName()).Contains("_pre")) norm0 *= lumiref;
-          else if (lumi>0)                               norm0 *= lumi/lumiref;
+          else if (lumi>0) {
+	    norm0 *= lumi/lumiref;
+	    norm0 *= jp::triglumiera[eraIdx][refidx]/1e6; // For luminosity normalization of inclusive jet spectra
+	  }
         }
 
         // Scale normalization for jackknife (but why?)
@@ -440,7 +464,8 @@ void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt, double et
           if (jp::dotrigeffsimple and !isgen and !isoth and peff->GetBinContent(binidx)==0 and hpt->GetBinContent(binidx)!=0 and hpt->GetBinCenter(binidx)>jp::recopt and hpt->GetBinCenter(binidx)*cosh(etamid)<3500.)
             cerr << "Hist " << hpt->GetName() << " " << indir->GetName() << " pt=" << hpt->GetBinCenter(binidx) << " etamid = " << etamid << endl << flush;
         } // for binidx
-      } else if (isdt) { // TH3, TH2 and TH1 that is not a hpt object
+      }      
+      else if (isdt) { // TH3, TH2 and TH1 that is not a hpt object
         // This we do only for data - there are no lumi weights to be applied for MC
         TString namehandle(name);
         TRegexp re_profile("^p");
@@ -458,7 +483,21 @@ void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt, double et
             handle->Scale(lumiref/lumi);
           } else if (obj->InheritsFrom("TH2")) {
             TH2D *handle = dynamic_cast<TH2D*>(obj2);
-            handle->Scale(lumiref/lumi);
+
+	    if (namehandle.Contains("hpts")) {
+
+	      int refidx = 0; // For luminosity normalization of inclusive jet spectra
+	      if (jp::yid==0) refidx = 9;
+	      else refidx = 10;
+	      double norm = jp::triglumiera[eraIdx][refidx]/1e6;
+	      norm *= 2; // We look at abs(eta) -> normalize to twice the eta bin width
+	      
+	      handle->Scale(1./norm,"width");  // Normalization with lumi and eta and pt bin widths
+	      
+	    }
+
+	    handle->Scale(lumiref/lumi);
+	    
           } else if (obj->InheritsFrom("TH1")) {
             TH1D *handle = dynamic_cast<TH1D*>(obj2);
             handle->Scale(lumiref/lumi);
@@ -471,7 +510,7 @@ void recurseNormFile(TDirectory *indir, TDirectory *outdir, bool isdt, double et
       obj2->Delete();
       indir->cd();
       // inherits from TH1
-    } else { // Others
+    }  else { // Others
       // Save the stuff into an identical directory
       TObject *obj2 = obj->Clone(obj->GetName()); // Copy the input object to output
       outdir->cd();

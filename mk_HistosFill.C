@@ -35,6 +35,7 @@ R__LOAD_LIBRARY(HistosRun.C+g)
 R__LOAD_LIBRARY(HistosBasic.C+g)
 R__LOAD_LIBRARY(HistosEta.C+g)
 R__LOAD_LIBRARY(HistosMC.C+g)
+R__LOAD_LIBRARY(Histos2D.C+g)
 R__LOAD_LIBRARY(HistosAll.C+g)
 R__LOAD_LIBRARY(HistosFill.C+g)
 #else
@@ -43,76 +44,94 @@ R__LOAD_LIBRARY(HistosRun.C+)
 R__LOAD_LIBRARY(HistosBasic.C+)
 R__LOAD_LIBRARY(HistosEta.C+)
 R__LOAD_LIBRARY(HistosMC.C+)
+R__LOAD_LIBRARY(Histos2D.C+)
 R__LOAD_LIBRARY(HistosAll.C+)
 R__LOAD_LIBRARY(HistosFill.C+)
 #endif // USEASSERT or not?
 
 void mk_HistosFill() {
-
   bool fail = false;
-  // Check the lengths of trigger infos & such
-  if (jp::isdt) {
-    if (jp::triggers.size()!=jp::notrigs) {
-      cout << "jp::trigger size mismatch" << endl;
+  // Performing generic checks always, as a safety measure
+  if (jp::triggers.size()!=jp::notrigs) {
+    cout << "jp::trigger size mismatch" << endl;
+    fail = true;
+  }
+  if (jp::trigthr.size()!=jp::notrigs) {
+    cout << "jp::trigthr size mismatch" << endl;
+    fail = true;
+  }
+  if (jp::trigranges.size()!=jp::notrigs) {
+    cout << "jp::trigranges size mismatch" << endl;
+    fail = true;
+  }
+  if (jp::triglumi.size()!=jp::notrigs) {
+    cout << "jp::triglumi size mismatch" << endl;
+    fail = true;
+  }
+  if (jp::triglumi.size()!=jp::notrigs) {
+    cout << "jp::triglumi size mismatch" << endl;
+    fail = true;
+  }
+  if (jp::IOVnames.size()!=jp::IOVranges.size()) {
+    cout << "IOV count mismatch in jp::IOVnames and jp::IOVranges" << endl;
+    fail = true;
+  }
+  if (jp::triglumiera.size()!=jp::dtfiles.size()) {
+    cout << "Mismatch between data files and lumi era" << endl;
+    fail = true;
+  }
+  for (auto &lumis : jp::triglumiera) {
+    if (lumis.size()!=jp::notrigs) {
+      cout << "jp::triglumiera size mismatch with triggers!" << endl;
       fail = true;
-    } else if (jp::trigthr.size()!=jp::notrigs) {
-      cout << "jp::trigthr size mismatch" << endl;
-      fail = true;
-    } else if (jp::trigranges.size()!=jp::notrigs) {
-      cout << "jp::trigranges size mismatch" << endl;
-      fail = true;
-    } else if (jp::triglumi.size()!=jp::notrigs) {
-      cout << "jp::triglumi size mismatch" << endl;
-      fail = true;
-    } else if (jp::triglumi.size()!=jp::notrigs) {
-      cout << "jp::triglumi size mismatch" << endl;
-      fail = true;
-    } else if (jp::triglumiera.size()!=jp::eras.size()) {
-      cout << "Era count mismatch in jp::triglumiera and jp::eras" << endl;
-      fail = true;
-    } else if (jp::dtfiles.size()<jp::eras.size()) {
-      cout << "Data files not provided for all eras!" << endl;
-      fail = true;
-    } else if (jp::IOVnames.size()!=jp::IOVranges.size()) {
-      cout << "IOV count mismatch in jp::IOVnames and jp::IOVranges" << endl;
-    } else {
-      for (auto &lumis : jp::triglumiera) {
-        if (lumis.size()!=jp::notrigs) {
-          cout << "jp::triglumiera size mismatch" << endl;
-          fail = true;
-          break;
-        }
-      }
     }
   }
-  if (jp::ispy) {
-    if (jp::pthatbins) {
-      // Check that pthat file dimensions are ok
-      if (jp::pthatfiles.size()<jp::npthatbins) {
-        cout << "The pthat info dimensions don't match! jp::pthatfiles vs jp::npthatbins" << endl;
-        fail = true;
-      } else if (jp::pthatsigmas.size()!=jp::npthatbins) {
-        cout << "The pthat info dimensions don't match! jp::pthatsigmas vs jp::npthatbins" << endl;
-        fail = true;
-      } else if (jp::pthatranges.size()!=jp::npthatbins+1) {
-        cout << "The pthat info dimensions don't match! jp::pthatranges vs jp::npthatbins" << endl;
-        fail = true;
-      }
-    } else if (jp::htbins) {
-      // Check that ht file dimensions are ok
-      if (jp::htfiles.size()<jp::nhtbins) {
-        cout << "The ht info dimensions don't match! jp::htfiles vs jp::nhtbins" << endl;
-        fail = true;
-      } else if (jp::htsigmas.size()!=jp::nhtbins) {
-        cout << "The ht info dimensions don't match! jp::htsigmas vs jp::nhtbins" << endl;
-        fail = true;
-      } else if (jp::htranges.size()!=jp::nhtbins+1) {
-        cout << "The ht info dimensions don't match! jp::htranges vs jp::nhtbins" << endl;
-        fail = true;
-      }
-    }
+  if (jp::eras.size()<jp::dtfiles.size()) {
+    cout << "Amount of eras not sufficient! (jp::eras)" << endl;
+    fail = true;
+  }
+  if (jp::eras.size()<jp::dtfiles.size()) {
+    cout << "Amount of eras not sufficient! (jp::eras)" << endl;
+    fail = true;
+  }
+  // Check that pthat file dimensions are ok
+  if (jp::pthatfiles.size()<jp::npthatbins) {
+    cout << "The pthat info dimensions don't match! jp::pthatfiles vs jp::npthatbins" << endl;
+    fail = true;
+  } else if (jp::pthatsigmas.size()!=jp::npthatbins) {
+    cout << "The pthat info dimensions don't match! jp::pthatsigmas vs jp::npthatbins" << endl;
+    fail = true;
+  } else if (jp::pthatranges.size()!=jp::npthatbins+1) {
+    cout << "The pthat info dimensions don't match! jp::pthatranges vs jp::npthatbins" << endl;
+    fail = true;
+  }
+  // Check that ht file dimensions are ok
+  if (jp::htfiles.size()<jp::nhtbins) {
+    cout << "The ht info dimensions don't match! jp::htfiles vs jp::nhtbins" << endl;
+    fail = true;
+  } else if (jp::htsigmas.size()!=jp::nhtbins) {
+    cout << "The ht info dimensions don't match! jp::htsigmas vs jp::nhtbins" << endl;
+    fail = true;
+  } else if (jp::htranges.size()!=jp::nhtbins+1) {
+    cout << "The ht info dimensions don't match! jp::htranges vs jp::nhtbins" << endl;
+    fail = true;
   }
   if (fail) return;
+
+  // Find out era index
+  int eraIdx = -1;
+  int eraNo = 0;
+  for (auto &eraMatch : jp::eras) {
+    if (jp::run==eraMatch) {
+      eraIdx = eraNo;
+      break;
+    }
+    ++eraNo;
+  }
+  if (eraIdx<0) {
+    cout << "Era " << jp::run << " not found! Aborting!" << endl;
+    return;
+  }
 
   string algo = "ak4";
   if (jp::strings_equal(jp::algo,"AK8")) algo = "ak8";
@@ -126,11 +145,14 @@ void mk_HistosFill() {
     cout << "Running over DT" << endl;
     cout << "Load trees..." << endl;
 
-    assert(jp::dtfiles.size()>=jp::eras.size());
+    if (eraIdx>=jp::dtfiles.size()) {
+      cout << "Era index for " << jp::run << " does not match to a data file! Please retry!" << endl;
+      return;
+    }
     const char* ps = jp::dtpath;
 
-    for (auto &fname : jp::dtfiles.at(jp::run))
-      files.push_back(Form("%s%s%s",p,ps,fname));
+    for (auto &fname : jp::dtfiles[eraIdx])
+      files.push_back(Form("%s%s%s",p,ps,fname.c_str()));
   } else if (jp::ispy) {
     if (jp::pthatbins) {
       cout << "Running over pthat binned files in pythia8" << endl;
@@ -163,7 +185,7 @@ void mk_HistosFill() {
     } else {
       cout << "Running over pythia flat sample" << endl;
 
-      for (auto &fname : jp::mcfiles.at(jp::mcfile))
+      for (auto &fname : jp::mcfiles.at(jp::p8file))
         files.push_back(Form("%s%s",p,fname));
     }
   } else if (jp::ishw) {
@@ -188,7 +210,7 @@ void mk_HistosFill() {
     if (jp::isdt) {
       cout << "Enter a proper value for run!" << endl;
       cout << "Entered: " << jp::run << endl << "Options:";
-      for (auto &fname : jp::dtfiles) cout << " " << fname.first;
+      for (auto &fname : jp::eras) cout << " " << fname;
       cout << endl;
     } else if (jp::ispy or jp::ishw or jp::isnu) {
       if (jp::pthatbins) {
@@ -197,7 +219,7 @@ void mk_HistosFill() {
         cout << "Problems with ht file logic!" << endl;
       } else {
         cout << "Enter a proper value for MC tag!" << endl;
-        cout << "Entered: " << jp::mcfile << endl << "Options:";
+        cout << "Entered: " << jp::p8file << endl << "Options:";
         for (auto &fname : jp::mcfiles) cout << " " << fname.first;
         cout << endl;
       }
@@ -215,7 +237,7 @@ void mk_HistosFill() {
 
   if (centries > 0) {
     try {
-      HistosFill filler(c);
+      HistosFill filler(c,eraIdx);
       filler.Loop();
     } catch (const exception& e) {
       cout << e.what() << endl;

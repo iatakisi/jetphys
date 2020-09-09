@@ -59,7 +59,7 @@ void HistosCombine(string type = "") {
 
   // Store pT ranges to a nice map
   if (!isdt) {
-    if (jp::usemctrig) {
+    if (jp::useMCTrig) {
       _ptranges["mc"] = pair<double,double>(0., jp::sqrts/2.);
     } else {
       _ptranges["mc"] = pair<double,double>(0., 0.);
@@ -69,7 +69,7 @@ void HistosCombine(string type = "") {
   for (auto itrg = 0u; itrg != jp::notrigs; ++itrg) {
     _ptranges[jp::triggers[itrg]] = pair<double, double>(jp::trigranges[itrg][0], jp::trigranges[itrg][1]);
 
-    if (!isdt and jp::usemctrig) { // When in mc, we need to know how to use trigger weighting. Either mc or triggers are ignored
+    if (!isdt and jp::useMCTrig) { // When in mc, we need to know how to use trigger weighting. Either mc or triggers are ignored
       _ptranges[jp::triggers[itrg]] = pair<double,double>(0.,0.);
       _ignoretrgs.push_back(jp::triggers[itrg]);
     }
@@ -97,6 +97,7 @@ void HistosCombine(string type = "") {
   if (!isdt) recurseCombFile(fin, fout, isdt, "hpt_g0tw");
 
   recurseCombFile(fin, fout, isdt, "hpt0");
+  recurseCombFile(fin, fout, isdt, "hptd");
   recurseCombFile(fin, fout, isdt, "hpt1");
   recurseCombFile(fin, fout, isdt, "hpt2");
   recurseCombFile(fin, fout, isdt, "hpt3");
@@ -291,6 +292,10 @@ void HistosCombine(string type = "") {
 
   if (isdt) recurseCombFile(fin, fout, isdt, "peff_new");
 
+ recurseCombFile(fin, fout, isdt, "hptsdef");
+ recurseCombFile(fin, fout, isdt, "hptswid");
+ recurseCombFile(fin, fout, isdt, "hptsnar");
+  
   curdir->cd();
 
   cout << endl;
@@ -430,6 +435,19 @@ void recurseCombFile(TDirectory *indir, TDirectory *outdir, bool isdt, string hn
           TObject *inobj = indir2->Get(Form("%s/%s",isdt ? jp::reftrig : "mc",hname.c_str()));
           if (inobj) {
             if (string(indir2->GetName())!="FullEta_Gen") cout << "FullEta";
+            TH1 *hpt = dynamic_cast<TH1*>(inobj->Clone(hname.c_str()));
+            hpt->Reset();
+            if (hpt) {
+              recurseCombFile(indir2, outdir2, isdt, hname, ptSelect, othProf, 1, etamid);
+              hpt->Write();
+              hpt->Delete();
+              indir2->cd();
+            }
+          }
+        } else if (loclvl==0 and TString(indir2->GetName()).Contains("2Dhistograms")) {
+          outdir2->cd();
+          TObject *inobj = indir2->Get(Form("%s/%s",isdt ? jp::reftrig : "mc",hname.c_str()));
+          if (inobj) {
             TH1 *hpt = dynamic_cast<TH1*>(inobj->Clone(hname.c_str()));
             hpt->Reset();
             if (hpt) {

@@ -1,4 +1,3 @@
-
 // Purpose: d'Agostini ("Bayesian" or Richardson-Lucy) unfolding, including
 //          response matrix generation from NLO theory and parameterized JER
 // Author:  mikko.voutilainen@cern.ch
@@ -28,120 +27,69 @@
 #include "RooUnfold/src/RooUnfoldResponse.h"
 //#include "RooUnfold.h"
 
-#include "TUnfold.h"
-#include "TUnfoldDensity.h"
-
 #include "tdrstyle_mod18.C"
 #include "ptresolution.h"
 #include "settings.h"
 #include "tools.h"
+#include "ansatz.h"
+#include "unfsettings.h"
+
+#include "deriveSubBins.h"
 
 #include <iostream>
 
 using namespace std;
 
-bool _jet = false;
+double _epsilon = 1e-12;
 
 // Resolution function
 Double_t fPtRes(Double_t *x, Double_t *p) { return ptresolution(x[0], p[0]);}
 
-// Ansatz Kernel 
-int cnt_a = 0;
-const int nk = 3; // number of kernel parameters (excluding pt, eta)
-
-//quark and gluon response fit which is normilized to inc jets
-TF1 *RNF_g=0;
-TF1 *RNF_q=0;
-
-Double_t smearedAnsatzKernel(Double_t *x, Double_t *p) {
-
-  if (++cnt_a%1000000==0) cout << "+" << flush;
-
-  const double pt = x[0]; // true pT
-  const double ptmeas = p[0]; // measured pT
-  const double eta = p[1]; // rapidity
-
-  
-  double mean=0;
-  if(jp::isgluon && !jp::isquark){
-      if (!RNF_g) RNF_g=new TF1("RNF_g","([0]+[1]*pow(x,[2]))/(0.997212+0.568271*pow(x,-1.16785))", 1,5000);
-      RNF_g->SetParameters(0.984455,0.0953105,-0.493221);
-      mean = RNF_g->Eval(pt)*pt;
-  }else if(jp::isquark && !jp::isgluon){
-      if (!RNF_q) RNF_q=new TF1("RNF_q","([0]+[1]*pow(x,[2]))/(0.997212+0.568271*pow(x,-1.16785))", 1,5000);
-      RNF_q->SetParameters(0.989670,0.150814,-0.331038);
-      mean = RNF_q->Eval(pt)*pt;
-  }else{
-      mean = pt;
-}
-
-  
-  double res = ptresolution(pt, eta+1e-3) * pt;
-  const double s = TMath::Gaus(ptmeas, mean, res, kTRUE);
-  double scale = 1;
-  //const double s = TMath::Gaus(ptmeas, pt*scale, res, kTRUE);
-  const double f = p[2] * pow(pt, p[3]) * pow(1 - pt*cosh(eta) / jp::emax, p[4]);
-  
-  return (f * s);
-}
-
-// Smeared Ansatz
-double _epsilon = 1e-12;
-TF1 *_kernel = 0; // global variable, not pretty but works
-Double_t smearedAnsatz(Double_t *x, Double_t *p) {
-
-  const double pt = x[0];
-  const double eta = p[0];
-
-  if (!_kernel) _kernel = new TF1("_kernel", smearedAnsatzKernel, 1., jp::emax/cosh(eta), nk+2);
-
-  double res = ptresolution(pt, eta+1e-3) * pt;
-  const double sigma = max(0.10, min(res/pt, 0.30));
-  double ptmin = pt / (1. + 4.*sigma); // xmin*(1+4*sigma)=x
-  ptmin = max(1.,ptmin); // safety check
-  double ptmax = pt / (1. - 3.*sigma); // xmax*(1-3*sigma)=x
-  //  cout << Form("1pt %10.5f sigma %10.5f ptmin %10.5f ptmax %10.5f eta %10.5f",pt, sigma, ptmin, ptmax, eta) << endl << flush;
-  ptmax = min(jp::emax/cosh(eta), ptmax); // safety check
-  //  cout << Form("2pt %10.5f sigma %10.5f ptmin %10.5f ptmax %10.5f eta %10.5f",pt, sigma, ptmin, ptmax, eta) << endl << flush;
-
-  const double par[nk+2] = {pt, eta, p[1], p[2], p[3]};
-  _kernel->SetParameters(&par[0]);
-
-  // Set pT bin limits needed in smearing matrix generation
-  if (p[4]>0 && p[4]<jp::emax/cosh(eta)) ptmin = p[4];
-  if (p[5]>0 && p[5]<jp::emax/cosh(eta)) ptmax = p[5];
-
-  return ( _kernel->Integral(ptmin, ptmax, _epsilon) );
-  //  return ( 1.0); // integral fails due to nan ptmin ptmax
-}
 void recurseFile(TDirectory *indir, TDirectory *indir2, TDirectory *outdir,
                  bool ismc);
+
+void recurseCustomFile(TDirectory *indir, TDirectory *indir2, TDirectory *outdir,
+                 bool ismc);
+
 void dagostiniUnfold_histo(TH1D *hpt, TH1D *hpt2, TDirectory *outdir,
 			   bool ismc, bool kscale = false, string id = "");
 
 
 void dagostiniUnfold(string type) {
 
-  //TFile *fin = new TFile(Form("../ROOTFiles_of_Laura_for_test/output-%s-2b.root",type.c_str()),"READ");
-  //TFile *fin = new TFile(Form("output-%s-1.root","DATA"),"READ");
-  TFile *fin = new TFile(Form("output-%s-QGUL.root",type.c_str()),"READ");
+  TFile *fin = new TFile(Form("output-%s-2b.root","DATA"),"READ");
   assert(fin && !fin->IsZombie());
 
-  // TFile *fin2 = new TFile(Form("output-%s-2c.root",type.c_str()),"READ");
-  // TFile *fin2 = new TFile(Form("output-%s-2b.root",type.c_str()),"READ");
-  TFile *fin2 = new TFile(Form("output-%s-QGUL.root","MC"),"READ");
-  //TFile *fin2 = new TFile("../ROOTFiles_of_Laura_for_test/output-MC-2b.root","READ");
-  //TFile *fin2 = new TFile(jp::dagfile1 ? "output-MC-1.root" : "../ROOTFiles_of_Laura_for_test/output-MC-2b.root","READ");
+  TFile *fin2;
+  
+  if (uf::usecustom) {
+    fin2 = new TFile("~/cernbox/CustomMCs/pThat5_P8_incl_5M_pt.root","READ");
+    cout << "Use custom spectra for response matrix generation" << endl;
+  }
+  else {
+    fin2 = new TFile(uf::dagfile1 ? "output-MC-1.root" : "output-MC-2b.root","READ");
+    cout << "Use jetphys output " << Form("%s",uf::dagfile1 ? "output-MC-1.root" : "output-MC-2b.root") << " for response matrix generation" << endl;
+      }
+
   assert(fin2 && !fin2->IsZombie());
   
   TFile *fout;
-  if(jp::isgluon && !jp::isquark){ fout = new TFile(Form("output-%s-3_gluon.root",type.c_str()),"RECREATE"); assert(fout && !fout->IsZombie());}
-  else if(jp::isquark && !jp::isgluon){ fout = new TFile(Form("output-%s-3_quark.root",type.c_str()),"RECREATE"); assert(fout && !fout->IsZombie());}
-  else{ fout = new TFile(Form("output-%s-3.root",type.c_str()),"RECREATE"); assert(fout && !fout->IsZombie());}
+  
+  if (jp::isgluon && !jp::isquark) {
+    fout = new TFile(Form("output-%s-3_gluon.root",type.c_str()),"RECREATE"); assert(fout && !fout->IsZombie());
+  }
+  else if (jp::isquark && !jp::isgluon) {
+    fout = new TFile(Form("output-%s-3_quark.root",type.c_str()),"RECREATE"); assert(fout && !fout->IsZombie());
+  }
+  else {
+    fout = new TFile(Form("output-%s-3.root",type.c_str()),"RECREATE"); assert(fout && !fout->IsZombie());
+  }
 
   bool ismc = jp::ismc;
 
-  recurseFile(fin, fin2, fout, ismc);
+  if (uf::usecustom) recurseCustomFile(fin, fin2, fout, ismc);
+  else recurseFile(fin, fin2, fout, ismc);
+  
 
   cout << "Output stored in " << fout->GetName() << endl;
   fout->Close();
@@ -191,43 +139,39 @@ void recurseFile(TDirectory *indir, TDirectory *indir2, TDirectory *outdir,
     // Found hpt plots: call unfolding routine
     if(jp::isgluon && !jp::isquark){
         cout << "gluon unfolding routine"<<endl;
-        if (obj->InheritsFrom("TH1") && (string(obj->GetName())=="hgpt" || string(obj->GetName())=="hpt_jet" )) {
+        if (obj->InheritsFrom("TH1") && (string(obj->GetName())=="hgpt" )) {
             cout << "+" << flush;
             
-            _jet = TString(obj->GetName()).Contains("hpt_jet");
-            TH1D *hpt = (TH1D*)obj;
+	    TH1D *hpt = (TH1D*)obj;
             //TH1D *hpt2 = (TH1D*)indir2->Get("hnlo"); assert(hpt2);
             //    TH1D *hpt2 = (TH1D*)indir2->Get(jp::dagfile1 ? "mc/hpt_g" : "hgpt"); assert(hpt2);
-            TH1D *hpt2 = (TH1D*)indir2->Get(jp::dagfile1 ? "mc/hgpt_g" : "hgpt"); assert(hpt2);
+            TH1D *hpt2 = (TH1D*)indir2->Get(uf::dagfile1 ? "mc/hgpt_g" : "hgpt"); assert(hpt2);
             if (hpt2)
                 dagostiniUnfold_histo(hpt, hpt2, outdir, ismc);
         } //hgpt plots
     }else if(jp::isquark && !jp::isgluon){
         cout << "quark unfolding routine"<<endl;
-        if (obj->InheritsFrom("TH1") && (string(obj->GetName())=="hqpt" || string(obj->GetName())=="hpt_jet" )) {
+        if (obj->InheritsFrom("TH1") && (string(obj->GetName())=="hqpt")) {
             cout << "+" << flush;
             
-            _jet = TString(obj->GetName()).Contains("hpt_jet");
-            TH1D *hpt = (TH1D*)obj;
+	    TH1D *hpt = (TH1D*)obj;
             //TH1D *hpt2 = (TH1D*)indir2->Get("hnlo"); assert(hpt2);
             //    TH1D *hpt2 = (TH1D*)indir2->Get(jp::dagfile1 ? "mc/hpt_g" : "hgpt"); assert(hpt2);
-            TH1D *hpt2 = (TH1D*)indir2->Get(jp::dagfile1 ? "mc/hqpt_g" : "hqpt"); assert(hpt2);
+            TH1D *hpt2 = (TH1D*)indir2->Get(uf::dagfile1 ? "mc/hqpt_g" : "hqpt"); assert(hpt2);
             if (hpt2)
                 dagostiniUnfold_histo(hpt, hpt2, outdir, ismc);
         } //hqpt plots
-    }else{
-        cout << "all unfolding routine"<<endl;
-        if (obj->InheritsFrom("TH1") && (string(obj->GetName())=="hpt" || string(obj->GetName())=="hpt_jet" )) {
+    } else {
+      // cout << "Inclusive jet unfolding routine"<<endl;
+	if (obj->InheritsFrom("TH1") && string(obj->GetName())=="hpt") {
+
             cout << "+" << flush;
             
-            _jet = TString(obj->GetName()).Contains("hpt_jet");
-            TH1D *hpt = (TH1D*)obj;
-            //TH1D *hpt2 = (TH1D*)indir2->Get("hnlo"); assert(hpt2);
-            //    TH1D *hpt2 = (TH1D*)indir2->Get(jp::dagfile1 ? "mc/hpt_g" : "hgpt"); assert(hpt2);
-            TH1D *hpt2 = (TH1D*)indir2->Get(jp::dagfile1 ? "mc/hpt_g" : "hpt"); assert(hpt2);
+	    TH1D *hpt = (TH1D*)obj;
+	    TH1D *hpt2 = (TH1D*)indir2->Get(uf::dagfile1 ? "mc/hpt_g" : "hpt"); assert(hpt2);
             if (hpt2)
                 dagostiniUnfold_histo(hpt, hpt2, outdir, ismc);
-            } //hpt for inclusive for other cases 
+            } // hpt for inclusive for other cases 
         
     } // hpt plots
 
@@ -235,6 +179,58 @@ void recurseFile(TDirectory *indir, TDirectory *indir2, TDirectory *outdir,
 
   curdir->cd();
 } // recurseFile
+
+void recurseCustomFile(TDirectory *indir, TDirectory *indir2, TDirectory *outdir,
+                 bool ismc) {
+
+  TDirectory *curdir = gDirectory;
+
+  // Automatically go through the list of keys (directories)
+  TList *keys = indir->GetListOfKeys();
+  TListIter itkey(keys);
+  TObject *key, *obj;
+
+  while ( (key = itkey.Next()) ) {
+
+    obj = ((TKey*)key)->ReadObj(); assert(obj);
+
+    // Found a subdirectory: copy it to output and go deeper
+    if (obj->InheritsFrom("TDirectory")) {
+
+      if (jp::debug) cout << key->GetName() << endl;
+
+      assert(outdir->mkdir(obj->GetName()));
+      outdir->mkdir(obj->GetName());
+      assert(outdir->cd(obj->GetName()));
+      TDirectory *outdir2 = outdir->GetDirectory(obj->GetName()); assert(outdir2);
+      outdir2->cd();
+
+      assert(indir->cd(obj->GetName()));
+      TDirectory *indir2a = indir->GetDirectory(obj->GetName()); assert(indir2a);
+      indir2a->cd();
+
+
+      recurseCustomFile(indir2a, indir2, outdir2, ismc);
+    
+	      
+     } // inherits from TDirectory
+
+ 
+    // Found hpt plots: call unfolding routine
+ 
+      if (obj->InheritsFrom("TH1") && string(obj->GetName())=="hpt") {
+            cout << "+" << flush;         
+	    TH1D *hpt = (TH1D*)obj;
+	    cout << "Get histogram" << curdir->GetName() << endl;
+	    TH1D *hpt2 = (TH1D*)indir2->Get(curdir->GetName()); assert(hpt2);
+            if (hpt2)
+                dagostiniUnfold_histo(hpt, hpt2, outdir, ismc);       
+    } // hpt plots
+
+  } // while key
+
+  curdir->cd();
+} // recurseCustomFile
 
 
 void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
@@ -245,28 +241,50 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
   sscanf(outdir->GetName(),"Eta_%f-%f",&y1,&y2);
   cout << outdir->GetName() << " y1:" << y1 << " y2: " << y2 << endl;
   const char *c = id.c_str();
-  if (_jet) c = "_jet";
-
   _ismcjer = ismc;
+
+  // Correct hpt (data) for ECAL prefire
+  // Similar way as in https://github.com/miquork/jecsys/blob/2018_Moriond19/minitools/drawDeltaJEC.C
+
+  if (y1 >= 2.0 && y2 <= 3.0 && jp::yid < 2 && uf::doECALprefire) {
+    cout << "Correct ECAL prefire" << endl;
+    jer_iov runECAL = prefireIOV();
+
+    for (int i = 0; i != hpt->GetNbinsX()+1; ++i) {
+ 
+      double pt = hpt->GetBinCenter(i);
+      double y = hpt->GetBinContent(i);
+      double yerr = hpt->GetBinError(i);
+
+      double ineff = ecalprefire(pt, y1+0.1, runECAL); 
+      double eff = 1-ineff;
+      double corr = 1./eff;
+            
+      if (y>0) {
+	hpt->SetBinContent(i, corr*y);
+	hpt->SetBinError(i, corr*yerr);
+       }
+     }
+
+  }  // ECAL prefire
 
   // initial fit of the NLO curve to a histogram
   TF1 *fnlo = new TF1(Form("fus%s",c),
-		      //   "[0]*exp([1]/x)*pow(x,[2])"
 		           "[0]*pow(x,[1])"
                       "*pow(1-x*cosh([3])/[4],[2])", //10., 1000.);
-		      jp::unfptminnlo, min(jp::xmax, jp::emax/cosh(y1)));
+		      uf::ptminnlo, min(uf::xmax, jp::emax/cosh(y1)));
 
-  fnlo->SetParameters(5e10,-5.2,8.9,y1,jp::emax);
+  fnlo->SetParameters(1e10,-5.2,8.9,y1,jp::emax);
   //  fnlo->SetParameters(2e14*2e-10,-18,-5,10,y1,jp::emax);
   fnlo->FixParameter(3,y1);
   fnlo->FixParameter(4,jp::emax);
 
   //hnlo->Fit(fnlo,"QRN");
   //hnlo->Scale(2e-10); // TEMP PATCH
-  fnlo->SetRange(max(60.,jp::unfptminnlo), min(jp::xmax, jp::emax/cosh(y1)));
+  fnlo->SetRange(max(uf::fitmin,uf::ptminnlo), min(uf::xmax, jp::emax/cosh(y1)));
   cout << "fit hnlo" << endl;
-  hnlo->Fit(fnlo,"RN");  // There seems to be abnormal terminations
-  fnlo->SetRange(jp::unfptminnlo, min(jp::xmax, jp::emax/cosh(y1)));
+  hnlo->Fit(fnlo,"RN"); 
+  fnlo->SetRange(uf::ptminnlo, min(uf::xmax, jp::emax/cosh(y1)));
 
   // Graph of theory points with centered bins
   const double minerr = 0.02;
@@ -281,57 +299,61 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
     double ptmin = hnlo->GetBinLowEdge(i);
     double ptmax = hnlo->GetBinLowEdge(i+1);
 
-    double y0 = fnlo->Integral(ptmin, ptmax) / (ptmax - ptmin);
-    double x = fnlo->GetX(y0, ptmin, ptmax);
+    if (!isnan(fnlo->Eval(ptmax))) {
+      double y0 = fnlo->Integral(ptmin, ptmax) / (ptmax - ptmin);
+      double x = fnlo->GetX(y0, ptmin, ptmax);
 
-    int n = gnlo->GetN();
-    tools::SetPoint(gnlo, n, x, y, 0, dy);
-    tools::SetPoint(gnlo2, n, x, y, 0, tools::oplus(dy, minerr*y));
+      int n = gnlo->GetN();
+      tools::SetPoint(gnlo, n, x, y, 0, dy);
+      tools::SetPoint(gnlo2, n, x, y, 0, tools::oplus(dy, minerr*y));
+    }
   }
 
   // Second fit to properly centered graph
   //gnlo2->Fit(fnlo,"QRN");
-  fnlo->SetRange(max(60.,jp::unfptminnlo), min(jp::xmax, jp::emax/cosh(y1)));   // Fit ranges here...
+  fnlo->SetRange(max(uf::fitmin,uf::ptminnlo), min(uf::xmax, jp::emax/cosh(y1)));   // Fit ranges here...
   cout << "fit to gnlo2" << endl;
   gnlo2->Fit(fnlo,"RN");
-  fnlo->SetRange(jp::unfptminnlo, min(jp::xmax, jp::emax/cosh(y1)));
+  fnlo->SetRange(uf::ptminnlo, min(uf::xmax, jp::emax/cosh(y1)));
 
   // Bin-centered data points
   TGraphErrors *gpt = new TGraphErrors(0);
   gpt->SetName(Form("gpt%s",c));
-    for (int i = 1; i != hpt->GetNbinsX()+1; ++i) {
+    for (int i = 0; i != hpt->GetNbinsX()+1; ++i) {
  
       double ptmin = hpt->GetBinLowEdge(i);
       double ptmax = hpt->GetBinLowEdge(i+1);
-      double y = fnlo->Integral(ptmin, ptmax) / (ptmax - ptmin);
-      double x = fnlo->GetX(y, ptmin, ptmax);
       double ym = hpt->GetBinContent(i);
-      double ym_err = hpt->GetBinError(i);
-      if (ym>0) {
+      
+      if (ym>0 && !isnan(fnlo->Eval(ptmax))) { // Ingrate only if this is a bin that has some content
+	double y = fnlo->Integral(ptmin, ptmax) / (ptmax - ptmin);
+	double ym_err = hpt->GetBinError(i);
+	double x = fnlo->GetX(y, ptmin, ptmax);    
 	tools::SetPoint(gpt, gpt->GetN(), x, ym, 0., ym_err);
       }
   } // for i
 
   // Create smeared theory curve
   double maxpt = jp::emax/cosh(y1);
-  cout << "y1 "<< y1 << " c "<< c <<endl<<flush;
-  TF1 *fnlos = new TF1(Form("fs%s",c),smearedAnsatz,jp::unfptminnlo,maxpt,nk+3); 
+  cout << "y1 "<< y1 <<endl<<flush;
+  TF1 *fnlos = new TF1(Form("fs%s",c),smearedAnsatz,uf::ptminnlo,maxpt,nk+3); 
   fnlos->SetParameters(y1, fnlo->GetParameter(0), fnlo->GetParameter(1),
                        fnlo->GetParameter(2), 0, 0);
-  cout << "par0 "<< fnlos->GetParameter(0) << "y1 "<< y1<<endl<<flush; 
+  cout << "par0 "<< fnlos->GetParameter(0) << " y1 "<< y1<<endl<<flush; 
 
-  cout << "Calculate forward smearing and unfold hpt" << endl << flush;
+  cout << "Calculate forward smearing and unfold" << endl << flush;
 
   TGraphErrors *gfold_fwd = new TGraphErrors(0);
   gfold_fwd->SetName(Form("gfold_fwd%s",c));
   TGraphErrors *gcorrpt_fwd = new TGraphErrors(0);
   gcorrpt_fwd->SetName(Form("gcorrpt_fwd%s",c));
   TH1D *hcorrpt_fwd = (TH1D*)hpt->Clone(Form("hcorrpt_fwd%s",c));
+  hcorrpt_fwd->Reset();
 
-  //  for (int i = 0; i != gpt->GetN(); ++i) {
-  for (int i = 1; i != gpt->GetN()+1; ++i) {
+  for (int i = 0; i != gpt->GetN()+1; ++i) {
     double x, y, ex, ey;
     tools::GetPoint(gpt, i, x, y, ex, ey);
+
     double k = fnlo->Eval(x) / fnlos->Eval(x);
 
     if (!TMath::IsNaN(k)) {
@@ -349,29 +371,30 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
   cout << "Generating smearing matrix T..." << endl << flush;
 
   double tmp_eps = _epsilon;
-  _epsilon = 1e-6; // speed up calculations with acceptable loss of precision
+  //  _epsilon = 1e-6; // speed up calculations with acceptable loss of precision
 
-  // NB: GetArray only works if custom x binning
   outdir->cd();
 
   // Deduce range and binning for true and measured spectra
   vector<double> vx; // true, gen
   vector<double> vy; // measured, reco
-  for (int i = 1; i != hpt->GetNbinsX()+1; ++i) {
+  double maxx = 0;
+  for (int i = 0; i != hpt->GetNbinsX()+1; ++i) {
 
     double x = hpt->GetBinCenter(i);
     double x1 = hpt->GetBinLowEdge(i);
     double x2 = hpt->GetBinLowEdge(i+1);
     double y = hpt->GetBinContent(i); 
 
-    if (x>=jp::unfptmingen && y>0) {
+    if (x>=uf::ptmingen && y>0) {
       if (vx.size()==0) vx.push_back(x1);
       vx.push_back(x2);
     }
 
-      if (x>=jp::unfptminreco && y>0) {
+      if (x>=uf::ptminreco && y>0) {
        if (vy.size()==0) vy.push_back(x1);
        vy.push_back(x2);
+       maxx = x2;
     }
   }
 
@@ -395,13 +418,15 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
     htrue->SetBinError(i, hnlo->GetBinError(j)*dpt);
   }
 
-   TH2D *mt = new TH2D(Form("mt%s",c),"mt;p_{T,reco};p_{T,gen}",           // Construction: x, y
+ TH2D *mt = new TH2D(Form("mt%s",c),"mt;p_{T,reco};p_{T,gen}",           // Construction: x, y
 		      vy.size()-1, &vy[0],vx.size()-1, &vx[0]
 		       );
   TH1D *mx = new TH1D(Form("mx%s",c),"mx;p_{T,gen};#sigma/dp_{T}",   
 		      vx.size()-1, &vx[0]);   // "TRUE"
   TH1D *my = new TH1D(Form("my%s",c),"my;p_{T,reco};#sigma/dp_{T}",
 		      vy.size()-1, &vy[0]);   // RECO
+
+
 
   double mtbinsX = mt->GetNbinsX();  double mtbinsY = mt->GetNbinsY();
   
@@ -414,15 +439,20 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
    
     double ptreco1 = mt->GetXaxis()->GetBinLowEdge(i);
     double ptreco2 = mt->GetXaxis()->GetBinLowEdge(i+1);
-    double yreco = fnlo->Integral(ptreco1, ptreco2) / (ptreco2 - ptreco1);
-    double ptreco = fnlo->GetX(yreco, ptreco1, ptreco2);
 
+    double ptreco = 0;
+    if (!isnan(fnlo->Eval(ptreco2))) {
+      double yreco = fnlo->Integral(ptreco1, ptreco2) / (ptreco2 - ptreco1);
+      ptreco = fnlo->GetX(yreco, ptreco1, ptreco2);
+      }
+        
+    
     for (int j = 1; j != mt->GetNbinsY()+1; ++j) {
 
       double ptgen1 = min(jp::emax/cosh(y1), mt->GetYaxis()->GetBinLowEdge(j));
       double ptgen2 = min(jp::emax/cosh(y1), mt->GetYaxis()->GetBinLowEdge(j+1));
 
-      if (ptgen1>=jp::unfptmingen && ptreco>jp::unfptminreco && ptgen1*cosh(y1)<jp::emax) {  // This results in rows and columns of 0 in mt
+      if (ptgen1>=uf::ptmingen && ptreco>uf::ptminreco && ptgen1*cosh(y1)<jp::emax) {  // This results in rows and columns of 0 in mt
 
         fnlos->SetParameter(4, ptgen1);
         fnlos->SetParameter(5, ptgen2);
@@ -477,14 +507,15 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
   }
 
   K->SetMatrixArray(mtEntries.GetArray());
-  K->Print();
+  //  K->Print();
 
   TDecompSVD *svd = new TDecompSVD(*K);
   svd->Decompose(); 
 
   // Get singular values
   TVectorD singulars = svd->GetSig();
-  singulars.Print();
+  // singulars.Print();
+  // TODO: save values, handling zero rows/columns in mt
 
 
   // For BinByBin and SVD, need square matrix
@@ -515,6 +546,7 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
   }
   
   _epsilon = tmp_eps;
+
   if (jp::debug)
     cout << "done." << endl << flush;
 
@@ -578,9 +610,7 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
   cout << "Moving to bin by bin" << endl;
   
   TH1D *hcorrpt_bin(0), *hcorrpt_svd(0);
-  //  _jet = 0; // added
-  if (!_jet) {
-
+ 
     RooUnfoldResponse *uResps = new RooUnfoldResponse(my, mxs, mts);
     RooUnfoldBinByBin *uBin = new RooUnfoldBinByBin(uResps, hreco);
     TH1D *hTrueBin = (TH1D*)uBin->Hreco(RooUnfold::kCovariance);
@@ -613,16 +643,9 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
       hcorrpt_svd->SetBinContent(j, hTrueSVD->GetBinContent(i));
       hcorrpt_svd->SetBinError(j, hTrueSVD->GetBinError(i));
       }
-   }
-
-  // TUnfold.
-
-  // cout << "Moving to TUnfold" << endl;
-
-
-
-  if (jp::debug)
-   cout << "done." << endl << flush;
+  
+  //  if (jp::debug)
+   cout << "Unfolding done." << endl << flush;
 
   // Store "unfolding correction" (unfolded / original) and corrected graph
   //cout << "Store graphs..." << endl << flush;
@@ -634,7 +657,6 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
   //
   TGraphErrors *gfold_bin(0), *gcorrpt_bin(0);
   TGraphErrors *gfold_svd(0), *gcorrpt_svd(0);
-  if (!_jet) {
 
     gfold_bin = new TGraphErrors(0);
     gfold_bin->SetName(Form("gfold_bin%s",c));
@@ -644,7 +666,6 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
     gfold_svd->SetName(Form("gfold_svd%s",c));
     gcorrpt_svd = new TGraphErrors(0);
     gcorrpt_svd->SetName(Form("gcorrpt_svd%s",c));
-  }
 
   // Normalize hcorrpt
   for (int i = 1; i != hcorrpt_dag->GetNbinsX()+1; ++i) {
@@ -652,19 +673,18 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
     hcorrpt_dag->SetBinContent(i, hcorrpt_dag->GetBinContent(i) / dpt);
     hcorrpt_dag->SetBinError(i, hcorrpt_dag->GetBinError(i) / dpt);
   }
-  if (!_jet) {
-
-    for (int i = 1; i != hcorrpt_bin->GetNbinsX()+1; ++i) {
-      double dpt = hcorrpt_bin->GetBinWidth(i);
-      hcorrpt_bin->SetBinContent(i, hcorrpt_bin->GetBinContent(i) / dpt);
-      hcorrpt_bin->SetBinError(i, hcorrpt_bin->GetBinError(i) / dpt);
-    }
-    for (int i = 1; i != hcorrpt_bin->GetNbinsX()+1; ++i) {
-      double dpt = hcorrpt_svd->GetBinWidth(i);
-      hcorrpt_svd->SetBinContent(i, hcorrpt_svd->GetBinContent(i) / dpt);
-      hcorrpt_svd->SetBinError(i, hcorrpt_svd->GetBinError(i) / dpt);
-    }
+ 
+  for (int i = 1; i != hcorrpt_bin->GetNbinsX()+1; ++i) {
+    double dpt = hcorrpt_bin->GetBinWidth(i);
+    hcorrpt_bin->SetBinContent(i, hcorrpt_bin->GetBinContent(i) / dpt);
+    hcorrpt_bin->SetBinError(i, hcorrpt_bin->GetBinError(i) / dpt);
   }
+  for (int i = 1; i != hcorrpt_bin->GetNbinsX()+1; ++i) {
+    double dpt = hcorrpt_svd->GetBinWidth(i);
+    hcorrpt_svd->SetBinContent(i, hcorrpt_svd->GetBinContent(i) / dpt);
+    hcorrpt_svd->SetBinError(i, hcorrpt_svd->GetBinError(i) / dpt);
+  }
+ 
 
   for (int i = 0; i != gpt->GetN(); ++i) {
 
@@ -687,49 +707,46 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
     }
   } // for i
 
-  if (!_jet) {
+  for (int i = 0; i != gpt->GetN(); ++i) {
+    
+    double x, y, ex, ey;
+    tools::GetPoint(gpt, i, x, y, ex, ey);
+    
+    int j = hcorrpt_bin->FindBin(x);
+    double ycorr_bin = hcorrpt_bin->GetBinContent(j);
+    double eycorr_bin = hcorrpt_bin->GetBinError(j);
+    double ycorr_svd = hcorrpt_svd->GetBinContent(j);
+    double eycorr_svd = hcorrpt_svd->GetBinError(j);
+    
+    double k_bin = (ycorr_bin && y ? ycorr_bin / y : 1.);
+    double k_svd = (ycorr_svd && y ? ycorr_svd / y : 1.);
 
-    for (int i = 0; i != gpt->GetN(); ++i) {
+    if (!TMath::IsNaN(k_bin)) {
+      
+      double dk = 0;
+      //if (eycorr_bin/ycorr_bin > ey/y)
+      dk = eycorr_bin/ycorr_bin*k_bin;
+      tools::SetPoint(gfold_bin, gfold_bin->GetN(), x, k_bin, ex, dk);
+      tools::SetPoint(gcorrpt_bin, gcorrpt_bin->GetN(),
+		      x, ycorr_bin, ex, eycorr_bin);
+    }
 
-      double x, y, ex, ey;
-      tools::GetPoint(gpt, i, x, y, ex, ey);
+    if (!TMath::IsNaN(k_svd)) {
+      
+      double dk = 0;
+      //if (eycorr_svd/ycorr_svd > ey/y)
+      dk = eycorr_svd/ycorr_svd*k_svd;
+      tools::SetPoint(gfold_svd, gfold_svd->GetN(), x, k_svd, ex, dk);
+      tools::SetPoint(gcorrpt_svd, gcorrpt_svd->GetN(),
+		      x, ycorr_svd, ex, eycorr_svd);
+    }
 
-      int j = hcorrpt_bin->FindBin(x);
-      double ycorr_bin = hcorrpt_bin->GetBinContent(j);
-      double eycorr_bin = hcorrpt_bin->GetBinError(j);
-      double ycorr_svd = hcorrpt_svd->GetBinContent(j);
-      double eycorr_svd = hcorrpt_svd->GetBinError(j);
-
-      double k_bin = (ycorr_bin && y ? ycorr_bin / y : 1.);
-      double k_svd = (ycorr_svd && y ? ycorr_svd / y : 1.);
-
-      if (!TMath::IsNaN(k_bin)) {
-
-	double dk = 0;
-	//if (eycorr_bin/ycorr_bin > ey/y)
-	dk = eycorr_bin/ycorr_bin*k_bin;
-	tools::SetPoint(gfold_bin, gfold_bin->GetN(), x, k_bin, ex, dk);
-	tools::SetPoint(gcorrpt_bin, gcorrpt_bin->GetN(),
-			x, ycorr_bin, ex, eycorr_bin);
-      }
-
-      if (!TMath::IsNaN(k_svd)) {
-
-	double dk = 0;
-	//if (eycorr_svd/ycorr_svd > ey/y)
-	dk = eycorr_svd/ycorr_svd*k_svd;
-	tools::SetPoint(gfold_svd, gfold_svd->GetN(), x, k_svd, ex, dk);
-	tools::SetPoint(gcorrpt_svd, gcorrpt_svd->GetN(),
-			x, ycorr_svd, ex, eycorr_svd);
-      }
-
-    } // for i
-  }
+  } // for i
 
   outdir->cd();
 
   // Save resolution function
-  TF1 *fres = new TF1(Form("fres%s",c), fPtRes, jp::xmin, jp::xmax, 1);
+  TF1 *fres = new TF1(Form("fres%s",c), fPtRes, uf::xmin, uf::xmax, 1);
   fres->SetParameter(0, y1);
 
   // Store NLO ratio to (unsmeared) fit
@@ -756,27 +773,21 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
       tools::SetPoint(gratio, gratio->GetN(), x, y / ys, ex, ey / ys);
   }
 
-  if (!_jet) {
-
     // Inputs and central method results
     hpt->Write("hpt");
     hcorrpt_dag->Write("hcorrpt");
-    //hpt->Write("hcorrpt"); // TEMP PATCH bypass
     hnlo->Write("hnlo");
     gpt->Write("gpt");
     gcorrpt_dag->Write("gcorrpt");
-    //gpt->Write("gcorrpt"); // TEMP PATCH bypass
     gnlo2->Write("gnlo");
     gfold_dag->Write("gfold");
 
-    // Fit functions
+    // Fit functions.
     uResp->Write();
-    fnlo->SetRange(jp::unfptminnlo, min(jp::xmax, jp::emax/cosh(y1)));
+    fnlo->SetRange(uf::ptminnlo, min(uf::xmax, jp::emax/cosh(y1)));
     fnlo->SetNpx(1000); // otherwise ugly on log x-axis after write
     fnlo->Write();
-    // Calculating points for fs is taking significant time,
-    // and even got stuck at some point when too far out of the range
-    fnlos->SetRange(jp::unfptminnlo, min(jp::xmax, jp::emax/cosh(y1)));
+    fnlos->SetRange(uf::ptminnlo, min(uf::xmax, jp::emax/cosh(y1)));
     fnlos->SetNpx(1000); // otherwise ugly on log x-axis after write
     fnlos->Write();
     fres->Write();
@@ -809,7 +820,8 @@ void dagostiniUnfold_histo(TH1D *hpt, TH1D *hnlo, TDirectory *outdir,
 
     // Unfolding covariance matrix
     hCov->Write();
-  }
+
+
   
 }
 
